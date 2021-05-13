@@ -62,6 +62,7 @@ export interface CSSModulesOptions {
     json: Record<string, string>,
     outputFileName: string
   ) => void
+  moduleFileRE: string,
   scopeBehaviour?: 'global' | 'local'
   globalModulePaths?: string[]
   generateScopedName?:
@@ -81,9 +82,12 @@ export interface CSSModulesOptions {
 
 const cssLangs = `\\.(css|less|sass|scss|styl|stylus|pcss|postcss)($|\\?)`
 const cssLangRE = new RegExp(cssLangs)
-const cssModuleRE = new RegExp(`\\.module${cssLangs}`)
+const cssModuleRE = `\\.module${cssLangs}`
 const directRequestRE = /(\?|&)direct\b/
 const commonjsProxyRE = /\?commonjs-proxy/
+
+const isCssModule = (id: string, RE = cssModuleRE): boolean =>
+  RE.test(id)
 
 const enum PreprocessLang {
   less = 'less',
@@ -279,10 +283,12 @@ export function cssPostPlugin(config: ResolvedConfig): Plugin {
       let chunkCSS = ''
       let isPureCssChunk = true
       const ids = Object.keys(chunk.modules)
+      const { modules: modulesOptions } = config?.css || {}
       for (const id of ids) {
         if (
           !isCSSRequest(id) ||
-          cssModuleRE.test(id) ||
+          modulesOptions !== false &&
+          isCssModule(id, modulesOptions?.moduleFileRE) ||
           commonjsProxyRE.test(id)
         ) {
           isPureCssChunk = false
@@ -518,7 +524,7 @@ async function compileCSS(
   deps?: Set<string>
 }> {
   const { modules: modulesOptions, preprocessorOptions } = config.css || {}
-  const isModule = modulesOptions !== false && cssModuleRE.test(id)
+  const isModule = modulesOptions !== false && isCssModule(id, modulesOptions?.moduleFileRE)
   // although at serve time it can work without processing, we do need to
   // crawl them in order to register watch dependencies.
   const needInlineImport = code.includes('@import')
